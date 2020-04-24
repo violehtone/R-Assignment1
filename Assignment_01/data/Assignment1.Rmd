@@ -18,7 +18,7 @@ library(tidyverse)
 ```
 
 ## Question 1:
-##### What was good in the data
+##### What was good in the data:
  - no cell formatting was used (i.e. colors)  
  
  - comments were put in separate columns  
@@ -27,7 +27,7 @@ library(tidyverse)
  
  - Data was split into different tables and samples and counts tables were connected by the sample value  
  
-##### What could be improved
+##### What could be improved:
  - The counts data could have been in a 'long' format i.e. there should have been a column called 'sample' and 'count', instead of having multiple samples as separate columns  
  
  - The 'bad data' (with i.e. missing values) could have been labeled in a new column that would have had just TRUE / FALSE values indicating whether this is good or bad data. This would ease the filtering of data  
@@ -127,8 +127,9 @@ counts_selected <- counts_selected %>%
   group_by(sample) %>% 
   mutate(fraction = count / sum(count), total_count = sum(count)) %>% 
   ungroup()
-  
 ```
+
+
 
 ## Question 7:
 Calculate the total LAB fraction for each sample
@@ -173,10 +174,13 @@ summary_tibble <- counts_updated %>%
   ungroup()
 
 # Rename columns
-#summary_tibble <- rename(summary_tibble, "Dominant LAB genus" = dominant_LAB_genus)
-#summary_tibble <- rename(summary_tibble, "#Samples" = count)
+summary_tibble2 <- summary_tibble
+summary_tibble2 <- rename(summary_tibble2, "Dominant LAB genus" = dominant_LAB_genus)
+summary_tibble2 <- rename(summary_tibble2, "#Samples" = count)
 
-knitr::kable(summary_tibble, format="html", caption="Table 1. Number of samples in each dominant LAB genus.")
+summary_tibble2 %>%
+  knitr::kable(format="html", caption="Table 1. Number of samples in each dominant LAB genus.") %>% 
+  kableExtra::kable_styling()
 ```
 
 
@@ -224,9 +228,16 @@ contaminated_summary <- counts_contaminated_updated2 %>%
 summary_tibble$number_contaminated <- contaminated_summary$count
 summary_tibble$fraction_contaminated <- summary_tibble$number_contaminated / summary_tibble$count
 
-#print(summary_tibble)
-knitr::kable(summary_tibble, format="html", caption="Table 2. Number of samples and contaminated samples and their fraction of all samples in each dominant LAB genus.")
+# Rename columns
+summary_tibble <- rename(summary_tibble, "Dominant LAB genus" = dominant_LAB_genus)
+summary_tibble <- rename(summary_tibble, "#Samples" = count)
+summary_tibble <- rename(summary_tibble, "#contaminated" = number_contaminated)
+summary_tibble <- rename(summary_tibble, "Fraction contaminated" = fraction_contaminated)
 
+#print(summary_tibble)
+summary_tibble %>%
+  knitr::kable(format="html", caption="Table 2. Number of samples and contaminated samples and their fraction of all samples in each dominant LAB genus.") %>% 
+  kableExtra::kable_styling()
 
 ```
 
@@ -235,7 +246,7 @@ knitr::kable(summary_tibble, format="html", caption="Table 2. Number of samples 
 ```{r question 10, fig.cap="Figure 2. Total fraction of contaminating genera of samples as a function for the Shannon-Wiener diversity index"}
 # graph displaying the total fraction of contaminating genera of samples as a function fo the Shannon-Wiener diversity index
 
-counts_per_sample <- counts_contaminated_updated %>% 
+counts_per_sample <- counts_contaminated_updated2 %>% 
   group_by(sample) %>% 
   mutate(shannon_wiener = -sum(fraction * log(fraction))) %>%
   ungroup()
@@ -248,6 +259,10 @@ counts_per_sample %>%
   labs(x = "Shannon Wiener index", y = "Fraction of contaminated samples", title = "Total fraction of contaminating genera of samples as a function for the Shannon-Wiener diversity index")
 
 ```
+#### comments:
+- The above plot seems to have very low Shannon Wiener values so I've most likely made a mistake at some point. I'm aware of this and I would have fixed the issue if I wouldn't have ran out of time.
+
+
 
 ## Question 11
 ```{r question 11}
@@ -258,19 +273,12 @@ samples_none <- counts_per_sample[counts_per_sample$dominant_LAB_genus == "none"
 t_result <- t.test(samples_dominant_LAB$fraction_contaminated, samples_none$fraction_contaminated)
 
 print(t_result)
-#knitr::kable(t_result, format="html", caption="Table 2. T-test results for whether the total fraction of contamination differs significantly between samples that do and do not have a dominant LAB")
-
-# ggplot(data = counts_per_sample,
-#        mapping = aes(x = sample,
-#                      y = fraction_contaminated,
-#                      fill = dominant_LAB_genus)) +
-#   geom_col()
 ```
 
 
 #### Conclusion:  
 
-t-test gives a p-value of 0.006143, indicating that the null hypothesis should be rejected (with a p-value cutoff of 0.05). Thus, the groups seem to differ in terms of the fraction of contaminated samples. In other words, it seems that when a sample doesn't have a dominant LAB genus, it is very likely that this sample contains more contaminated samples.
+t-test gives a low p-value, indicating that the null hypothesis should be rejected. Thus, the groups seem to differ in terms of the fraction of contaminated samples. In other words, it seems that there is a correlation between not having a dominant LAB genus and having more contaminated samples.
 
 
 ## Question 12
@@ -282,40 +290,16 @@ village_table <- counts_per_sample %>%
 
 village_table_new <- spread(data = village_table, dominant_LAB_genus, count)
 
-#print(village_table_new)
-
-knitr::kable(village_table_new, format="html", caption="Table 3. Dominant LAB categories per village")
-
+village_table_new %>%
+  knitr::kable(format="html", caption="Table 3. Dominant LAB categories per village") %>% 
+  kableExtra::kable_styling()
 
 ```
 
+  
+  
 #### comments:
 
-- It seems that Streptococcus seems to be the dominant LAB category for each village. Village 'Keur Mbaye Peul' has however equal amount of nones as Streptococcuses.  
+- By looking at the data, it seems that 'Streptococcus' is the dominant LAB category for each village. 'Keur Mbaye Peul' has, however, equal amount of 'nones' as Streptococcuses. Also, 'None' seems to be the smallest group for all the other villages.
 
-- None seems to be the smallest group in all villages except for 'Keur Mbaye Peul'
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- It would be particularly interesting to further investigate the amount of each LAB category instead of just summarizing by results the most dominant LAB category as the differences might be rather small between the categories
