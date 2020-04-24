@@ -6,10 +6,7 @@ date: "`r strftime(Sys.Date(), '%B %d %Y')`"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
-
-#knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
-
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 
 library(knitr)
 library(readxl)
@@ -21,21 +18,29 @@ library(tidyverse)
 ```
 
 ## Question 1:
-What was good in the data
- - no cell formatting was used (i.e. colors)
- - comments were put in separate columns
- - variable names were clear and camelCase was used mostly (although in some columns this was not the case)
- - Data was split into different tables and samples and counts tables were connected by the sample value
+#### What was good in the data
+ - no cell formatting was used (i.e. colors)  
  
-What could be improved
- - The counts data could have been in a 'long' format i.e. there should have been a column called 'sample' and 'count', instead of having multiple samples as separate columns
- - The 'bad data' (with i.e. missing values) could have been labeled in a new column that would have had just TRUE / FALSE values indicating whether this is good or bad data. This would ease the filtering of data
- - in 'samples' table, the time columns could have been split into hours and minutes columns so that they would only include numerical values
-- in 'samples' table, there was a column called 'duplicate' that contained french (Oui / Non). Instead it would be simpler if it would contain only a logical TRUE / FALSE value
-- Metadata was missing
+ - comments were put in separate columns  
+ 
+ - variable names were clear and camelCase was used mostly (although in some columns this was not the case)  
+ 
+ - Data was split into different tables and samples and counts tables were connected by the sample value  
+ 
+#### What could be improved
+ - The counts data could have been in a 'long' format i.e. there should have been a column called 'sample' and 'count', instead of having multiple samples as separate columns  
+ 
+ - The 'bad data' (with i.e. missing values) could have been labeled in a new column that would have had just TRUE / FALSE values indicating whether this is good or bad data. This would ease the filtering of data  
+
+ - in 'samples' table, the time columns could have been split into hours and minutes columns so that they would only include numerical values  
+ 
+- in 'samples' table, there was a column called 'duplicate' that contained french (Oui / Non). Instead it would be simpler if it would contain only a logical TRUE / FALSE value  
+
+- Metadata was missing  
 
 
 ## Question 2:
+Create objects for counts, samples, and communities data
 ```{r question 2}
 counts <- read_xlsx('lait_caille_data.xlsx',
                     sheet = 'counts',
@@ -53,6 +58,7 @@ communities <- read_xlsx('lait_caille_data.xlsx',
 
 
 ## Question 3:
+Split counts data and tidy it
 ```{r question 3}
 # Split counts data into taxonomy and counts objects (both contain rankID)
 taxonomy <- select(counts,taxlevel, rankID, taxon)
@@ -67,31 +73,31 @@ counts_tidy <- gather(data = counts,
 
 
 ## Question 4:
+Perform checks
 ```{r question 4}
 # Gather all unique sample IDs from 'counts' & 'samples'
 counts_IDs <- unique(unlist(counts_tidy$sample, " "))
 samples_IDs <- samples$sample
 
 # Check that both IDs vectors contain the same objects
-all(counts_IDs %in% samples_IDs) #-> TRUE
-all(samples_IDs %in% counts_IDs) #-> TRUE
+print(c("Check that all IDs of counts are in samples:", all(counts_IDs %in% samples_IDs)))
+print(c("Check that all IDs of samples are in counts:", all(samples_IDs %in% counts_IDs)))
 
 # Gather unique community names from 'communities' and 'samples'
 original_names <- communities$original
 samples_communities <- unique(unlist(samples$community, " "))
 
 # Check if all original names are included in communities in 'samples' and vice versa 
-all(original_names %in% samples_communities) #-> TRUE
-all(samples_communities %in% original_names) #-> FALSE
+print(c("Check that all original names are in the communities of samples:", all(original_names %in% samples_communities)))
+print(c("Check that all communities of samples are in the original names:", all(samples_communities %in% original_names))) #-> FALSE
 
-# Gather the missing communities into a list
+# Gather the missing communities (= surplus or have missing values) into a list
 missing_communities <- samples_communities[!samples_communities %in% original_names]
-length(missing_communities) #-> 48 missing communities
-# These missing communities are surplus or have missing values
 ```
 
 
 ## Question 5:
+Filter rows where community is in senegal and taxonomy level is 6
 ```{r question 5}
 # Add community to 'counts' by sample ID from 'samples'
 counts_tidy_merged <- merge(counts_tidy, samples[, c("sample", "community")], 
@@ -111,16 +117,18 @@ counts_selected <- counts_tidy_merged %>%
 
 
 ## Question 6:
+Calculate fractions of counts for each sample per genus
 ```{r question 6}
 # Calculate total counts per sample and the fraction of counts in each sample per genus
 counts_selected <- counts_selected %>% 
   group_by(sample) %>% 
-  mutate(fraction = count / sum(count), total_count = sum(count))
-ungroup(counts_selected)
-
+  mutate(fraction = count / sum(count), total_count = sum(count)) %>% 
+  ungroup()
+  
 ```
 
 ## Question 7:
+Calculate the total LAB fraction for each sample
 ```{r question 7}
 #Merge the taxon column to data
 counts_selected <- merge(counts_selected, 
@@ -134,8 +142,6 @@ counts_updated <- counts_selected %>%
   mutate(LAB_total_fraction = sum(count) / total_count) %>% 
   ungroup()
 
-ungroup(counts_selected)
-
 #Histogram of the total fraction of these LAB
 #hist(counts_updated$LAB_total_fraction)
 
@@ -148,23 +154,23 @@ ungroup(counts_selected)
 
 
 ## Question 8:
+Summarise the number of samples per dominant LAB
 ```{r question 8}
 # Make an object in which the dominant LAB genus is listed per sample
 # If the total LAB is less than 90% then set the value for dominant LAB genus to “(none)”
 counts_updated <- counts_updated %>%
   group_by(sample) %>% 
-  mutate(dominant_LAB_genus = ifelse(LAB_total_fraction > 0.9, taxon[which.max(fraction)], "none"))
-
-ungroup(counts_updated)
+  mutate(dominant_LAB_genus = ifelse(LAB_total_fraction > 0.9, taxon[which.max(fraction)], "none")) %>% 
+  ungroup()
 
 # Print a table that summarizes the total number of samples per dominant LAB.
 summary_tibble <- counts_updated %>% 
   group_by(sample, dominant_LAB_genus) %>% 
   summarise(count = n()) %>% 
   group_by(dominant_LAB_genus) %>% 
-  summarise(count = n())
+  summarise(count = n()) %>% 
+  ungroup()
 
-ungroup(counts_updated)
 print(summary_tibble)
 ```
 
@@ -172,6 +178,7 @@ print(summary_tibble)
 
 
 ## Question 9:
+Summarise the fraction of contaminated samples by the dominant LABs
 ```{r question 9}
 # Get genera file
 #current_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
@@ -190,11 +197,8 @@ counts_contaminated <- counts_selected %>%
   group_by(sample) %>% 
   filter(taxon %in% genuses) %>% 
   mutate(fraction_contaminated = sum(count) / total_count,
-         contaminated = ifelse(fraction_contaminated > 0.01, TRUE, FALSE))
-  
-ungroup(counts_selected)
-
-
+         contaminated = ifelse(fraction_contaminated > 0.01, TRUE, FALSE)) %>% 
+  ungroup()
 
 # Add the contaminated column to 'counts'
 counts_contaminated_updated <- merge(counts_updated,
@@ -208,12 +212,14 @@ counts_contaminated_updated <- counts_contaminated_updated[!duplicated(counts_co
 contaminated_summary <- counts_contaminated_updated %>% 
   group_by(dominant_LAB_genus, contaminated) %>%
   filter(contaminated == TRUE) %>% 
-  summarise(count = n())
+  summarise(count = n()) %>% 
+  ungroup()
 
 # Add the number and fraction of contaminated samples to each group
 summary_tibble$number_contaminated <- contaminated_summary$count
 summary_tibble$fraction_contaminated <- summary_tibble$number_contaminated / summary_tibble$count
 
+print(summary_tibble)
 ```
 
 
