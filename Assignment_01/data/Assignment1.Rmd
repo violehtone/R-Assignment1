@@ -211,10 +211,10 @@ counts_contaminated_updated <- merge(counts_updated,
                                      all.x = TRUE)
 
 #Filter out duplicate sample rows
-counts_contaminated_updated <- counts_contaminated_updated[!duplicated(counts_contaminated_updated$sample), ]
+counts_contaminated_updated2 <- counts_contaminated_updated[!duplicated(counts_contaminated_updated$sample), ]
 
 # Calculate the amount of contaminated samples
-contaminated_summary <- counts_contaminated_updated %>% 
+contaminated_summary <- counts_contaminated_updated2 %>% 
   group_by(dominant_LAB_genus, contaminated) %>%
   filter(contaminated == TRUE) %>% 
   summarise(count = n()) %>% 
@@ -235,19 +235,10 @@ knitr::kable(summary_tibble, format="html", caption="Table 2. Number of samples 
 ```{r question 10, fig.cap="Figure 2. Total fraction of contaminating genera of samples as a function for the Shannon-Wiener diversity index"}
 # graph displaying the total fraction of contaminating genera of samples as a function fo the Shannon-Wiener diversity index
 
-##----
-counts_selected_new <- counts_selected %>%
-  group_by(sample) %>%
-  mutate(dominant_LAB_genus = ifelse(LAB_total_fraction > 0.9, taxon[which.max(fraction)], "none")) %>%
-  filter(taxon %in% genuses) %>%
-  mutate(fraction_contaminated = sum(count) / total_count,
-         contaminated = ifelse(fraction_contaminated > 0.01, TRUE, FALSE)) %>% 
-  ungroup()
-#----
-
 counts_per_sample <- counts_contaminated_updated %>% 
   group_by(sample) %>% 
-  mutate(shannon_wiener = ifelse(is.nan(-sum(fraction * log(fraction))), 0, -sum(fraction * log(fraction))))
+  mutate(shannon_wiener = -sum(fraction * log(fraction))) %>%
+  ungroup()
 
 counts_per_sample %>% 
   ggplot(mapping = aes(x = shannon_wiener,
