@@ -18,7 +18,7 @@ library(tidyverse)
 ```
 
 ## Question 1:
-#### What was good in the data
+##### What was good in the data
  - no cell formatting was used (i.e. colors)  
  
  - comments were put in separate columns  
@@ -27,7 +27,7 @@ library(tidyverse)
  
  - Data was split into different tables and samples and counts tables were connected by the sample value  
  
-#### What could be improved
+##### What could be improved
  - The counts data could have been in a 'long' format i.e. there should have been a column called 'sample' and 'count', instead of having multiple samples as separate columns  
  
  - The 'bad data' (with i.e. missing values) could have been labeled in a new column that would have had just TRUE / FALSE values indicating whether this is good or bad data. This would ease the filtering of data  
@@ -95,6 +95,9 @@ print(c("Check that all communities of samples are in the original names:", all(
 missing_communities <- samples_communities[!samples_communities %in% original_names]
 ```
 
+Comments: It seems that not all communities found in samples are present in the original names
+
+
 
 ## Question 5:
 Filter rows where community is in senegal and taxonomy level is 6
@@ -129,7 +132,7 @@ counts_selected <- counts_selected %>%
 
 ## Question 7:
 Calculate the total LAB fraction for each sample
-```{r question 7}
+```{r question 7, fig.cap="Figure 1. Frequency of the total fractions of LAB"}
 #Merge the taxon column to data
 counts_selected <- merge(counts_selected, 
                          taxonomy[, c("taxon", "rankID")],
@@ -143,13 +146,11 @@ counts_updated <- counts_selected %>%
   ungroup()
 
 #Histogram of the total fraction of these LAB
-#hist(counts_updated$LAB_total_fraction)
-
-# counts_updated %>%
-#   group_by(sample) %>% 
-#   ggplot(mapping = aes(x = sample,
-#                        y = LAB_total_fraction)) +
-#   geom_col()
+counts_updated %>%
+  group_by(sample) %>%
+  ggplot(mapping = aes(x = LAB_total_fraction)) +
+  geom_histogram() +
+  labs(x = "total fraction of LAB", y = "frequency", title = "Frequency of the total fraction of LAB")
 ```
 
 
@@ -171,7 +172,11 @@ summary_tibble <- counts_updated %>%
   summarise(count = n()) %>% 
   ungroup()
 
-print(summary_tibble)
+# Rename columns
+#summary_tibble <- rename(summary_tibble, "Dominant LAB genus" = dominant_LAB_genus)
+#summary_tibble <- rename(summary_tibble, "#Samples" = count)
+
+knitr::kable(summary_tibble, format="html", caption="Table 1. Number of samples in each dominant LAB genus.")
 ```
 
 
@@ -219,30 +224,85 @@ contaminated_summary <- counts_contaminated_updated %>%
 summary_tibble$number_contaminated <- contaminated_summary$count
 summary_tibble$fraction_contaminated <- summary_tibble$number_contaminated / summary_tibble$count
 
-print(summary_tibble)
+#print(summary_tibble)
+knitr::kable(summary_tibble, format="html", caption="Table 2. Number of samples and contaminated samples and their fraction of all samples in each dominant LAB genus.")
+
+
 ```
 
 
 ## Question 10:
-```{r question 10}
+```{r question 10, fig.cap="Figure 2. Total fraction of contaminating genera of samples as a function for the Shannon-Wiener diversity index"}
 # graph displaying the total fraction of contaminating genera of samples as a function fo the Shannon-Wiener diversity index
 
+##----
+counts_selected_new <- counts_selected %>%
+  group_by(sample) %>%
+  mutate(dominant_LAB_genus = ifelse(LAB_total_fraction > 0.9, taxon[which.max(fraction)], "none")) %>%
+  filter(taxon %in% genuses) %>%
+  mutate(fraction_contaminated = sum(count) / total_count,
+         contaminated = ifelse(fraction_contaminated > 0.01, TRUE, FALSE)) %>% 
+  ungroup()
+#----
 
-# ADD SHANNON INDEX!
-counts_contaminated_updated %>%
+counts_per_sample <- counts_contaminated_updated %>% 
   group_by(sample) %>% 
-  ggplot(mapping = aes(x = sample,
+  mutate(shannon_wiener = ifelse(is.nan(-sum(fraction * log(fraction))), 0, -sum(fraction * log(fraction))))
+
+counts_per_sample %>% 
+  ggplot(mapping = aes(x = shannon_wiener,
                        y = fraction_contaminated,
-                       fill = dominant_LAB_genus)) +
-  geom_col()
+                       color = dominant_LAB_genus)) +
+  geom_point() +
+  labs(x = "Shannon Wiener index", y = "Fraction of contaminated samples", title = "Total fraction of contaminating genera of samples as a function for the Shannon-Wiener diversity index")
+
 ```
 
 ## Question 11
 ```{r question 11}
 # t-test to investigate whether the total fraction of contamination differs significantly between samples that do and don’t have a dominant LAB
+samples_dominant_LAB <- counts_per_sample[counts_per_sample$dominant_LAB_genus != "none", ]
+samples_none <- counts_per_sample[counts_per_sample$dominant_LAB_genus == "none", ]
+
+t_result <- t.test(samples_dominant_LAB$fraction_contaminated, samples_none$fraction_contaminated)
+
+print(t_result)
+#knitr::kable(t_result, format="html", caption="Table 2. T-test results for whether the total fraction of contamination differs significantly between samples that do and do not have a dominant LAB")
+
+# ggplot(data = counts_per_sample,
+#        mapping = aes(x = sample,
+#                      y = fraction_contaminated,
+#                      fill = dominant_LAB_genus)) +
+#   geom_col()
+```
+
+
+#### Conclusion:  
+
+t-test gives a p-value of 0.006143, indicating that the null hypothesis should be rejected (with a p-value cutoff of 0.05). Thus, the groups seem to differ in terms of the fraction of contaminated samples. In other words, it seems that when a sample doesn't have a dominant LAB genus, it is very likely that this sample contains more contaminated samples.
+
+
+## Question 12
+```{r}
+#table that lists the dominant LAB categories per village (community)
+village_table <- counts_per_sample %>% 
+  group_by(community, dominant_LAB_genus) %>% 
+  summarise(count = n())
+
+village_table_new <- spread(data = village_table, dominant_LAB_genus, count)
+
+#print(village_table_new)
+
+knitr::kable(village_table_new, format="html", caption="Table 3. Dominant LAB categories per village")
+
 
 ```
 
+#### comments:
+
+- It seems that Streptococcus seems to be the dominant LAB category for each village. Village 'Keur Mbaye Peul' has however equal amount of nones as Streptococcuses.  
+
+- None seems to be the smallest group in all villages except for 'Keur Mbaye Peul'
 
 
 
