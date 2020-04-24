@@ -2,7 +2,7 @@
 title: "Statistics with R - Assignment1"
 author: "Ville Lehtonen"
 output: html_document
-date: "`r strftime(Sys.Date(), '%B %d %Y')`"
+date: "24.4.2020"
 ---
 
 ```{r setup, include=FALSE}
@@ -11,10 +11,11 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 library(knitr)
 library(readxl)
 library(tidyverse)
+
+# If the data files are in a separate folder, uncomment the below code:
 #current_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
 #data_file_path <- paste(current_dir, '/data', sep = "")
 #knitr::opts_knit$set(root.dir = data_file_path)
-
 ```
 
 ## Question 1:
