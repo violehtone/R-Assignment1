@@ -1,0 +1,200 @@
+---
+title: "Statistics with R - Assignment1"
+author: "Ville Lehtonen"
+output: html_document
+date: "24.4.2020"
+---
+
+# Assignment 1
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+
+library(knitr)
+library(readxl)
+library(tidyr)
+library(dplyr)
+```
+
+## Question 2
+```{r}
+f <- file.path('lait_caille_data.xlsx')
+counts <- read_excel(f, sheet = 'counts')
+samples <- read_excel(f, sheet = 'samples')
+communities <- read_excel(f, sheet = 'communities')
+```
+
+
+## Question 3
+```{r}
+taxonomy <- counts %>% 
+  select(rankID, taxlevel, taxon)
+
+counts <- counts %>% 
+  select(-taxlevel, -taxon) %>%
+  gather(key='sample',
+         value='count',
+         -rankID)
+```
+
+
+## Question 4
+```{r}
+all(counts$sample %in% samples$sample)
+all(samples$sample %in% counts$sample)
+all(samples$community %in% communities$original)
+all(communities$original %in% samples$community)
+
+missing_identifiers <- unique(samples$community[!(samples$community %in% communities$original)])
+```
+
+
+## Question 5
+```{r}
+# Filter the counts object to only contain the samples from the communities in Senegal and only level 6 (genus) counts. 
+
+taxons_selected <- taxonomy %>% 
+  filter(taxlevel==6)
+
+samples_selected <- samples %>%
+  filter(community %in% communities$original)
+
+counts_selected <- counts %>%
+  filter(sample %in% samples_selected$sample &
+           rankID %in% taxons_selected$rankID)
+
+```
+
+
+## Question 6
+```{r}
+# calculate total counts per sample and the fraction of counts in each sample per genus (level 6 taxons). Add the fraction as a new column (fraction)
+
+counts_selected <- counts_selected %>%
+  group_by(sample) %>%
+  mutate(fraction = count/sum(count)) %>%
+  ungroup()
+```
+
+
+## Question 7
+```{r}
+# Create an object containing for every sample (only selected samples) the individual and total fractions of these three LAB genera
+lab_genera <- c('Lactococcus','Lactobacillus','Streptococcus')
+
+lab_fractions <- counts_selected %>% 
+  inner_join(taxons_selected %>%filter(taxon %in% lab_genera)) %>% 
+  select(sample, taxon, fraction)
+
+lab_totals <- lab_fractions %>% 
+  group_by(sample) %>% 
+  summarize(totalLAB = sum(fraction))
+
+library(ggplot2)
+p <- ggplot(data = lab_totals,
+            mapping = aes(x = totalLAB)) +
+  geom_histogram() +
+  labs(x = "Total fraction of LAB")
+
+print(p)
+```
+
+
+
+## Question 8
+```{r}
+# Make an object in which the dominant LAB genus is listed per sample. If the total LAB is less than 90% then set the value for dominant LAB genus to “(none)”
+
+
+lab_totals <- lab_fractions %>%
+  group_by(sample) %>%
+  summarize(totalLAB = sum(fraction),
+            dominantLAB=taxon[which.max(fraction)]) %>%
+  mutate(dominantLAB=ifelse(totalLAB<0.9, '(none)', dominantLAB))
+
+lab_summary <- lab_totals %>%
+  group_by(dominantLAB) %>%
+  summarize(samples = n())
+
+print(lab_summary)
+```
+
+
+## Question 9
+```{r}
+# Modify the previous table by adding two columns listing the number and fraction of heavily contaminated samples
+
+colon_genera <- readr::read_tsv("colon_genera.tab", comment = "#")
+
+contamination <- taxons_selected %>% 
+  inner_join(colon_genera, by =c('taxon' = 'genus')) %>% 
+  inner_join(counts_selected) %>% 
+  group_by(sample) %>% 
+  summarize(totalcontamination = sum(fraction))
+
+lab_totals <- lab_totals %>% 
+  inner_join(contamination) %>% 
+  mutate(contaminated = totalcontamination > 0.01)
+
+lab_summary <- lab_totals %>% 
+  group_by(dominantLAB) %>% 
+  summarize(samples = n(),
+            contaminated = sum(contaminated)) %>% 
+  mutate(fraction_contaminated = contaminated / samples)
+
+
+print(lab_summary)
+
+```
+
+
+## Question 10
+```{r}
+# Make a graph displaying the total fraction of contaminating genera of samples as a function fo the Shannon-Wiener diversity index
+
+sw <- counts_selected %>% 
+  filter(fraction > 0) %>% 
+  group_by(sample) %>% 
+  summarize(H = -sum(fraction * log(fraction)))
+
+lab_totals <- lab_totals %>% 
+  inner_join(sw)
+
+ggplot(data = lab_totals,
+       mapping = aes(x = H,
+                     y = totalcontamination,
+                     colour = dominantLAB)) +
+  geom_point()
+
+```
+
+
+## Question 11
+
+```{r}
+# Perform a t-test to investigate whether the total fraction of contamination differs significantly between samples t
+
+lab_totals <- lab_totals %>% 
+  mutate(has_dominantLAB = dominantLAB != '(none)')
+
+t.test(totalcontamination ~ has_dominantLAB,
+       data = lab_totals)
+
+```
+
+
+## Question 12
+```{r}
+
+community_dominantLAB <- lab_totals %>% 
+  inner_join(samples_selected) %>% 
+  group_by(community, dominantLAB) %>% 
+  summarise(count = n()) %>% 
+  spread(key = dominantLAB,
+         value = count)
+
+
+print(community_dominantLAB)
+
+```
+
+
